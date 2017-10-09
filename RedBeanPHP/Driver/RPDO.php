@@ -28,6 +28,7 @@ use RedBeanPHP\Cursor\PDOCursor as PDOCursor;
  */
 class RPDO implements Driver
 {
+    protected $reconnectCount=2;
 	/**
 	 * @var integer
 	 */
@@ -190,6 +191,13 @@ class RPDO implements Driver
 			if ( $this->loggingEnabled && $this->logger ) $this->logger->log( 'An error occurred: ' . $err );
 			$exception = new SQL( $err, 0, $e );
 			$exception->setSQLState( $e->getCode() );
+			//tiger reconnect
+			if($e->getCode() == 2006 || $e->getCode() == 2013){
+                //redo
+                $this->isConnected = false;
+                $this->reconnectCount--;
+                $this->reconnectCount>0&&$this->runQuery($sql,$bindings,$options);
+            }
 			$exception->setDriverDetails( $e->errorInfo );
 			throw $exception;
 		}
@@ -379,6 +387,7 @@ class RPDO implements Driver
 				$this->Execute( $this->initSQL );
 				$this->initSQL = NULL;
 			}
+			$this->reconnectCount = 2;
 		} catch ( \PDOException $exception ) {
 			$matches = array();
 			$dbname  = ( preg_match( '/dbname=(\w+)/', $this->dsn, $matches ) ) ? $matches[1] : '?';
